@@ -1,4 +1,4 @@
-SpaceMouse UI — local C4D plugin preview
+SpaceMouse UI — experimental macOS C4D plugin preview
 
 Cinema 4D 2027, macOS Apple Silicon. Requires the installed 3Dconnexion driver
 and its 3DconnexionHelper. Keep the vendor C4D plugin installed for native 3D
@@ -38,10 +38,11 @@ does not change motion or repeatedly apply a migration on restart.
 Navigation starts enabled. Existing
 companion direction/zoom preferences migrate on first launch. Settings are stored under C4D's prefs/SpaceMouseUI directory. Routine navigation logging is disabled; failures are reported in the C4D Console.
 
-This is an installable development preview, not a public release. The native
+This is an experimental prerelease tested only on macOS Apple Silicon.
+Windows, Linux, Intel Macs, and other C4D versions have not been tested. The native
 Timeline offsets and SDK callback adapter support the inspected C4D 2027
-and installed 3DconnexionClient builds only. Local temporary
-plugin IDs must be replaced with assigned Maxon IDs before distribution.
+and installed 3DconnexionClient builds only. Temporary
+plugin IDs are used in this preview; dedicated Maxon IDs are still pending.
 The driver framework is referenced from its installed location, not bundled.
 
 Build: python3 tools/c4d-plugin/build.py

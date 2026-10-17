@@ -9,6 +9,8 @@ dest=root/'.build/plugin/SpaceMouseUI'
 dest.mkdir(parents=True,exist_ok=True)
 for name in ('SpaceMouseUI.pyp','file_dialog_scroll.py','plugin_runtime.py','node_pan_scale.py','node_event_transport.py','preferences_model.py','preferences_ui.py','settings_dialog.py','viewport_activation.py','vendor_motion_reset.py','ortho_hover.py','README.txt'):
  shutil.copy2(root/'tools/c4d-plugin'/name,dest/name)
+shutil.copy2(root/'LICENSE',dest/'LICENSE')
+shutil.copy2(root/'docs/INSTALLATION.md',dest/'INSTALLATION.md')
 subprocess.run(['clang','-fobjc-arc','-O2','-Wall','-Wextra','-Wno-unused-parameter','-dynamiclib',
  '-I/Library/Frameworks/3DconnexionClient.framework/Headers','-F/Library/Frameworks','-framework','3DconnexionClient',
  '-framework','AppKit','-framework','ApplicationServices',str(root/'tools/c4d-plugin/input_bridge.m'),'-o',str(dest/'libSpaceMouseUIInput.dylib')],check=True)
