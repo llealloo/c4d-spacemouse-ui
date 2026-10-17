@@ -50,6 +50,16 @@ to inspected Cinema 4D and 3Dconnexion builds. Temporary plugin IDs need assigne
 Maxon IDs before distribution. The 3Dconnexion framework is linked from its
 installed location and is not bundled.
 
+## License
+
+This project's original source code is licensed under the [MIT License](LICENSE).
+
+Cinema 4D and 3Dconnexion software, SDKs, frameworks, and binaries remain subject
+to their respective owners' licenses. This project's MIT license does not grant
+rights to those third-party components or permission to redistribute them.
+Install the required vendor software separately; the 3Dconnexion framework is
+not bundled with this plugin.
+
 ## Earlier prototype notes
 
 # SpaceMouse macOS probe
