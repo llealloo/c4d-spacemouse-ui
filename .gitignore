@@ -1,0 +1,22 @@
+.build/
+.swiftpm/
+.DS_Store
+
+# Local snapshots, references, and investigation captures
+/baselines/
+/ref/
+/research/
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local credentials and editor settings
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/

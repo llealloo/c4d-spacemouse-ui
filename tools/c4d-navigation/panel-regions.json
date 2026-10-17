@@ -1,0 +1,22 @@
+{
+  "windowWidth": 3200,
+  "windowHeight": 1770,
+  "regions": [
+    {
+      "name": "Docked Objects",
+      "kind": "objects",
+      "x": 2750,
+      "y": 120,
+      "width": 430,
+      "height": 650
+    },
+    {
+      "name": "Docked Attributes native-scroll test",
+      "kind": "objects",
+      "x": 2750,
+      "y": 900,
+      "width": 430,
+      "height": 700
+    }
+  ]
+}
