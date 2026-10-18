@@ -1,4 +1,4 @@
-"""Version-specific Timeline view navigation. Never writes animation data."""
+"""Runtime-resolved Timeline view navigation. Never writes animation data."""
 import ctypes as C,json,struct,math,time
 from pathlib import Path
 ROOT=Path('/Users/leah/Documents/Projects/SpaceMouse')
@@ -6,14 +6,7 @@ DIAGNOSTICS=bool(globals().get('SPACEMOUSE_DIAGNOSTICS',False))
 last_log=0
 pending_redraw={}
 scroll_remainders={}
-import hashlib
-if hashlib.sha256(Path('/Applications/Maxon Cinema 4D 2027/corelibs/c4d_manager.xlib').read_bytes()).hexdigest()!='a89f07be5d054a0bf1f2764beb383b70d869089fb8a82bda01f4813a6c26fa3b':
-    raise RuntimeError('Timeline native navigation requires the inspected C4D build')
 lib=C.CDLL('/usr/lib/libSystem.B.dylib')
-lib._dyld_image_count.restype=C.c_uint
-lib._dyld_get_image_name.argtypes=[C.c_uint];lib._dyld_get_image_name.restype=C.c_char_p
-lib._dyld_get_image_header.argtypes=[C.c_uint];lib._dyld_get_image_header.restype=C.c_void_p
-BASE=next(lib._dyld_get_image_header(i) for i in range(lib._dyld_image_count()) if (lib._dyld_get_image_name(i) or b'').endswith(b'/c4d_manager.xlib'))
 lib.mach_vm_read_overwrite.argtypes=[C.c_uint,C.c_uint64,C.c_uint64,C.c_uint64,C.POINTER(C.c_uint64)]
 lib.mach_vm_read_overwrite.restype=C.c_int
 TASK=C.c_uint.in_dll(lib,'mach_task_self_').value
@@ -34,38 +27,79 @@ def sdk_time(seconds):
     numerator=math.floor(seconds*denominator+0.5)
     divisor=math.gcd(numerator,denominator)
     return TimeValue(numerator//divisor,denominator//divisor)
-RANGE=C.CFUNCTYPE(None,C.c_void_p,C.POINTER(TimeValue),C.POINTER(TimeValue),C.c_int)(BASE+0x670b4)
-VERTICAL=C.CFUNCTYPE(None,C.c_void_p,C.c_double,C.c_double)(BASE+0x478a4)
-REDRAW=C.CFUNCTYPE(None,C.c_void_p,C.c_int,C.c_int,C.c_int,C.c_int,C.c_int,C.c_void_p,C.c_int)(BASE+0x5c900)
 
-# C4D constructs these four TimelineDialog instances at manager+0x3a0e8
-# and stores them in its own registry. Resolve relative to this process's image.
-# No allocator addresses, document snapshots, or window titles are used.
+bridge_path=globals().get('SPACEMOUSE_BRIDGE')
+if not bridge_path:raise RuntimeError('Timeline bridge path was not provided')
+bridge=C.CDLL(bridge_path)
+bridge.SMTimelineAddress.argtypes=[C.c_int];bridge.SMTimelineAddress.restype=C.c_uint64
+bridge.SMTimelineDialogVisible.argtypes=[C.c_uint64];bridge.SMTimelineDialogVisible.restype=C.c_int
+bridge.SMTimelineDialogWindow.argtypes=[C.c_uint64];bridge.SMTimelineDialogWindow.restype=C.c_uint64
+bridge.SMTimelineDialogRect.argtypes=[C.c_uint64,C.c_int,C.POINTER(C.c_int)];bridge.SMTimelineDialogRect.restype=C.c_int
+bridge.SMTimelineDialogSetVisible.argtypes=[C.c_uint64,*([C.c_int]*5)];bridge.SMTimelineDialogSetVisible.restype=C.c_int
+bridge.SMTimelineAreaWidth.argtypes=[C.c_uint64];bridge.SMTimelineAreaWidth.restype=C.c_int
+bridge.SMTimelineAreaConvert.argtypes=[C.c_uint64,C.POINTER(C.c_double),C.POINTER(C.c_double),C.c_int];bridge.SMTimelineAreaConvert.restype=C.c_int
+bridge.SMTimelineAreaRedraw.argtypes=[C.c_uint64];bridge.SMTimelineAreaRedraw.restype=None
+CD,CU,LINKS,ATOM,BASELIST=[bridge.SMTimelineAddress(i) for i in range(1,6)]
+range_address,vertical_address,redraw_address,REGISTRY=[bridge.SMTimelineAddress(i) for i in range(6,10)]
+if not all((CD,CU,LINKS,ATOM,BASELIST,range_address,vertical_address,redraw_address,REGISTRY)):
+    raise RuntimeError('Timeline runtime resolver could not identify this C4D implementation')
+RANGE=C.CFUNCTYPE(None,C.c_void_p,C.POINTER(TimeValue),C.POINTER(TimeValue),C.c_int)(range_address)
+VERTICAL=C.CFUNCTYPE(None,C.c_void_p,C.c_double,C.c_double)(vertical_address)
+REDRAW=C.CFUNCTYPE(None,C.c_void_p,C.c_int,C.c_int,C.c_int,C.c_int,C.c_int,C.c_void_p,C.c_int)(redraw_address)
+
+# Resolve C4D's four TimelineDialog instances from the guarded registry found
+# by the native bridge. No allocator addresses or window titles are assumed.
 _registry=[]
 _registry_stamp=0
 _native_registry=None
+_layout=None
 
 def active_document():
-    ge=ptr(BASE+0x5b8a80)
-    return C.CFUNCTYPE(C.c_void_p)(ptr(ge+0x128))()
+    return bridge.SMTimelineAddress(0)
+
+def timeline_parents():
+    return [ptr(REGISTRY+index*8) for index in range(4)]
+
+def resolve_layout():
+    global _layout
+    if _layout is not None:return _layout
+    parents=[parent for parent in timeline_parents() if parent]
+    if not parents:raise RuntimeError('Timeline registry is empty')
+    parent_vtable=ptr(parents[0])
+    if not parent_vtable or any(ptr(parent)!=parent_vtable for parent in parents):
+        raise RuntimeError('Timeline registry class validation failed')
+    candidates=[]
+    for offset in range(0x20,0x800,8):
+        try:
+            matches=[]
+            for parent in parents:
+                area=parent+offset;area_vtable=ptr(area)
+                if area_vtable and ptr(area+0x18)==parent:matches.append((parent,area_vtable))
+            # C4D can retain a registry slot whose dialog is only partly
+            # initialized. Require two independent live objects to corroborate
+            # one layout, but do not let that incomplete slot veto the others.
+            if len(matches)>=2 and all(vtable==matches[0][1] for _,vtable in matches):
+                candidates.append((offset,parent_vtable,matches[0][1]))
+        except RuntimeError:pass
+    if len(candidates)!=1:raise RuntimeError('Timeline user-area layout is ambiguous')
+    _layout=candidates[0]
+    return _layout
 
 def validate_parent(parent):
-    area=parent+0x228
-    if ptr(parent)!=BASE+0x553290 or ptr(area)!=BASE+0x553058 or ptr(area+0x18)!=parent or ptr(area+0xa88)!=BASE+0x553848:
+    area_offset,parent_vtable,area_vtable=resolve_layout();area=parent+area_offset
+    if ptr(parent)!=parent_vtable or ptr(area)!=area_vtable or ptr(area+0x18)!=parent:
         raise RuntimeError('Timeline class validation failed')
     return area
 
 def resolve_definition(parent,doc):
-    links=ptr(BASE+0x5b8b70);link=ptr(parent+0x1c0)
-    node=C.CFUNCTYPE(C.c_void_p,C.c_void_p,C.c_void_p,C.c_int)(ptr(links+0x10))(link,doc,0) if link and doc else None
+    link=ptr(parent+0x1c0)
+    node=C.CFUNCTYPE(C.c_void_p,C.c_void_p,C.c_void_p,C.c_int)(ptr(LINKS+0x10))(link,doc,0) if link and doc else None
     if not node:raise RuntimeError('Timeline has no active document definition')
-    atom=ptr(BASE+0x5b8b88)
-    function,adjust=struct.unpack('<Qq',read(atom+0x20,16));obj=node+(adjust>>1)
+    function,adjust=struct.unpack('<Qq',read(ATOM+0x20,16));obj=node+(adjust>>1)
     if adjust&1:function=ptr(ptr(obj)+function)
     if C.CFUNCTYPE(C.c_int,C.c_void_p)(function)(obj)!=465001515:
         raise RuntimeError('Unexpected Timeline definition class')
-    bl=ptr(BASE+0x5b8af8)
-    data=C.CFUNCTYPE(C.c_void_p,C.c_void_p,C.c_int)(ptr(bl+0x78))(node,0)
+    data=C.CFUNCTYPE(C.c_void_p,C.c_void_p,C.c_int)(ptr(BASELIST+0x78))(node,0)
     if not data:raise RuntimeError('Timeline definition is unavailable')
     return node,data
 
@@ -86,29 +120,25 @@ def refresh_registry(force=False):
         handles[window]=(number,window)
         handles[call(window,'contentView')]=(number,window)
     doc=active_document();entries=[];diagnostics=[]
-    cd_table=ptr(BASE+0x5b8ad8)
     for index in range(4):
-        parent=ptr(BASE+0x5774f0+index*8)
+        parent=ptr(REGISTRY+index*8)
         detail={'index':index,'parent':hex(parent or 0)}
         try:
             if not parent:continue
-            area=validate_parent(parent);cd=ptr(parent+8)
-            if not cd:continue
+            area=validate_parent(parent)
             # Match GeDialog.IsVisible(): hidden dock tabs can retain their old
             # geometry, so host-window visibility alone is insufficient.
-            visible=C.CFUNCTYPE(C.c_bool,C.c_void_p,C.c_int,C.c_int,C.c_void_p,
-                C.c_int,C.c_int,C.c_int,C.c_int,C.c_void_p,C.c_void_p)(ptr(cd_table+0x110))
-            if not visible(cd,59,0,None,0,0,0,0,None,None):
+            if not bridge.SMTimelineDialogVisible(parent):
                 detail['reason']='Timeline manager is hidden';continue
-            handle=C.CFUNCTYPE(C.c_void_p,C.c_void_p)(ptr(cd_table+0x188))(cd)
+            handle=bridge.SMTimelineDialogWindow(parent)
             detail['nativeHandle']=hex(handle or 0)
             if handle not in handles:
                 detail['reason']='no visible host window';continue
             window,_=handles[handle]
             node,data=resolve_definition(parent,doc)
-            cu_table,cu,width,plot_width,rect=geometry(parent,area)
+            width,plot_width,rect=geometry(parent,area)
             x=C.c_double(rect[0]);y=C.c_double(rect[1])
-            ok=C.CFUNCTYPE(C.c_bool,C.c_void_p,C.POINTER(C.c_double),C.POINTER(C.c_double))(ptr(cu_table+0x2a0))(cu,C.byref(x),C.byref(y))
+            ok=bridge.SMTimelineAreaConvert(area,C.byref(x),C.byref(y),1)
             if not ok or rect[2]-rect[0]<50 or rect[3]-rect[1]<40:continue
             mode=struct.unpack('<i',read(data+0x124,4))[0]
             if mode not in (0,1):continue
@@ -138,8 +168,7 @@ def target(window,screen=None,area_id=None):
     entry=candidates[0];parent=entry['parent'];area=validate_parent(parent)
     doc=active_document()
     if doc!=entry['doc']:raise RuntimeError('Timeline document is changing')
-    cd_table=ptr(BASE+0x5b8ad8)
-    handle=C.CFUNCTYPE(C.c_void_p,C.c_void_p)(ptr(cd_table+0x188))(ptr(parent+8))
+    handle=bridge.SMTimelineDialogWindow(parent)
     if handle!=entry['handle']:raise RuntimeError('Timeline host window changed')
     node,data=resolve_definition(parent,doc)
     if node!=entry['definition']:raise RuntimeError('Timeline definition changed')
@@ -152,16 +181,13 @@ def values(data):
     return a/b,c/d,scale,offset
 
 def geometry(parent,area):
-    cu_table=ptr(BASE+0x5b8ae0);cd_table=ptr(BASE+0x5b8ad8)
-    cu=ptr(area+0x10);cd=ptr(parent+8)
-    width=C.CFUNCTYPE(C.c_int,C.c_void_p)(ptr(cu_table+0x10))(cu)
-    coords=[C.c_int() for _ in range(4)]
-    ok=C.CFUNCTYPE(C.c_bool,C.c_void_p,C.c_int,*([C.POINTER(C.c_int)]*4))(ptr(cd_table+0xd8))(cd,0x232d,*[C.byref(c) for c in coords])
+    width=bridge.SMTimelineAreaWidth(area)
+    coordinates=(C.c_int*4)();ok=bridge.SMTimelineDialogRect(parent,0x232d,coordinates)
     if not ok:raise RuntimeError('Timeline viewport is unavailable')
-    rect=[c.value for c in coords]
+    rect=list(coordinates)
     plot_width=struct.unpack('<i',read(area+0x80+0x604,4))[0]
     if not 50<plot_width<=width:raise RuntimeError('Invalid Timeline plot width')
-    return cu_table,cu,width,plot_width,rect
+    return width,plot_width,rect
 
 def scroll_pixels(key,delta):
     total=scroll_remainders.get(key,0.0)+delta
@@ -179,9 +205,9 @@ def navigate(data):
             for key in list(scroll_remainders):
                 if key[:3]==owner:del scroll_remainders[key]
         return True
-    cu_table,cu,width,plot_width,rect=geometry(parent,area)
+    width,plot_width,rect=geometry(parent,area)
     x,y=[C.c_double(v) for v in data['screen']]
-    C.CFUNCTYPE(C.c_bool,C.c_void_p,C.POINTER(C.c_double),C.POINTER(C.c_double))(ptr(cu_table+0x298))(cu,C.byref(x),C.byref(y))
+    bridge.SMTimelineAreaConvert(area,C.byref(x),C.byref(y),0)
     if not (rect[0]<=x.value<=rect[2] and rect[1]+35<=y.value<=rect[3]):return False
     in_plot=x.value>=width-plot_width
     if not in_plot and data['zoom']:return True
@@ -199,10 +225,9 @@ def navigate(data):
         if not data['zoom']:offset-=dy/(scale*max(1,rect[3]-rect[1]-35)/300.0)
         VERTICAL(parent,max(1e-7,min(1e7,scale*factor)),offset)
     elif dy and not data['zoom']:
-        cd=ptr(parent+8);cd_table=ptr(BASE+0x5b8ad8)
         shift=scroll_pixels((*owner,mode,in_plot),-dy)
         if shift:
-            C.CFUNCTYPE(C.c_bool,C.c_void_p,*([C.c_int]*5))(ptr(cd_table+0xc0))(cd,0x232d,rect[0],rect[1]+shift,rect[2],rect[3]+shift)
+            bridge.SMTimelineDialogSetVisible(parent,0x232d,rect[0],rect[1]+shift,rect[2],rect[3]+shift)
         elif not dx:return True
     # Pan and zoom arrive as separate packets. Finish both state updates before
     # repainting, then explicitly invalidate the complete SDK user area.
@@ -223,12 +248,9 @@ def flush_redraw():
         # (0x94314 -> 0x943ac). Mode 4 permits incremental drawing, whose
         # drag-session cache assumptions do not hold for this direct route.
         REDRAW(parent,0,1,0,1,1,None,0)
-        cu=ptr(area+0x10)
-        cu_table=ptr(BASE+0x5b8ae0);cd_table=ptr(BASE+0x5b8ad8)
-        gadget=C.CFUNCTYPE(C.c_int,C.c_void_p)(ptr(cu_table+0x20))(cu)
-        # Same documented SDK call as GeUserArea.Redraw(threaded=True).
-        # Queue a complete BFM_DRAW rather than relying on scroll-blit damage.
-        C.CFUNCTYPE(C.c_bool,C.c_void_p,C.c_int)(ptr(cd_table+0xd0))(ptr(parent+8),gadget)
+        # Queue a complete BFM_DRAW through the documented SDK wrapper rather
+        # than relying on scroll-blit damage or a table-slot offset.
+        bridge.SMTimelineAreaRedraw(area)
 
 def set_range(parent,left,right):
     if not (math.isfinite(left) and math.isfinite(right) and right>left):raise RuntimeError('Invalid requested view range')
@@ -239,7 +261,7 @@ def probe():
     if not request.exists():return
     command=json.loads(request.read_text());request.unlink()
     parent,area,data=target(command['window']);before=values(data)
-    cu_table,cu,width,plot_width,original_rect=geometry(parent,area)
+    width,plot_width,original_rect=geometry(parent,area)
     report={'time':time.time(),'before':before}
     try:
         shift=max(-.1,min(.1,float(command.get('shift',.05))))
@@ -250,17 +272,16 @@ def probe():
         if command.get('testNavigation'):
             set_range(parent,before[0],before[1]);VERTICAL(parent,before[2],before[3])
             x=C.c_double(width-plot_width*.5);y=C.c_double((original_rect[1]+35+original_rect[3])*.5)
-            C.CFUNCTYPE(C.c_bool,C.c_void_p,C.POINTER(C.c_double),C.POINTER(C.c_double))(ptr(cu_table+0x2a0))(cu,C.byref(x),C.byref(y))
+            bridge.SMTimelineAreaConvert(area,C.byref(x),C.byref(y),1)
             packet={'window':command['window'],'screen':[x.value,y.value],'dx':8,'dy':-8,'zoom':False}
-            report['panAccepted']=navigate(packet);report['panResult']=values(data);report['panRect']=geometry(parent,area)[4]
+            report['panAccepted']=navigate(packet);report['panResult']=values(data);report['panRect']=geometry(parent,area)[2]
             packet.update(dx=0,dy=5,zoom=True)
             report['zoomAccepted']=navigate(packet);report['zoomResult']=values(data)
             flush_redraw()
     finally:
         set_range(parent,before[0],before[1])
         VERTICAL(parent,before[2],before[3])
-        cd=ptr(parent+8);cd_table=ptr(BASE+0x5b8ad8)
-        C.CFUNCTYPE(C.c_bool,C.c_void_p,*([C.c_int]*5))(ptr(cd_table+0xc0))(cd,0x232d,*original_rect)
+        bridge.SMTimelineDialogSetVisible(parent,0x232d,*original_rect)
         REDRAW(parent,0,2,0,1,1,None,0)
         report['restored']=values(data)
         report['graphHeader']=list(struct.unpack('<8q',read(area+0xa88+8,64)))

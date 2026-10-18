@@ -10,7 +10,7 @@ compatibility workarounds are applied in memory while Cinema 4D is running.
 
 ## What it adds and fixes
 
-- Pan and graph-centered zoom in floating and docked Node Editors, including after adding or duplicating nodes.
+- Pan and graph-centered zoom in floating and docked Node and XPresso editors, including after adding or duplicating nodes.
 - Smooth Dope Sheet/F-Curve navigation and Timeline track-list scrolling.
 - Scrolling in lists, inspectors, and macOS Open/Save dialogs.
 - Independent sensitivity settings in **Preferences > SpaceMouse UI**.
@@ -34,11 +34,12 @@ using dedicated Maxon plugin IDs.
 
 ## Development
 
-Build with `python3 tools/c4d-plugin/build.py` on macOS with Python 3, Xcode
-Command Line Tools, and the installed 3Dconnexion framework. Output:
-`.build/plugin/SpaceMouseUI`. See [technical notes](tools/c4d-plugin/README.txt)
-and the archived [development history](docs/DEVELOPMENT_HISTORY.md).
-Package a release with `python3 tools/c4d-plugin/package_release.py v0.1.0-preview.3`.
+The packaged plugin requires the native bridge in `tools/c4d-native` to be built
+against a separately downloaded Maxon Cinema 4D SDK with a macOS 14.0 deployment
+target. With that bridge present, run `python3 tools/c4d-plugin/build.py`; output
+is `.build/plugin/SpaceMouseUI`. See [technical notes](tools/c4d-plugin/README.txt)
+and the archived [development history](docs/DEVELOPMENT_HISTORY.md). Package a
+release with `python3 tools/c4d-plugin/package_release.py <version-tag>`.
 
 ## License
 

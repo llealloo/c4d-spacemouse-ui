@@ -60,6 +60,12 @@ class FloatingWindowDiscovery(unittest.TestCase):
     def test_modified_title_retains_floating_surface_recognition(self):
         self.check_title('Node Editor *', guarded=True)
 
+    def test_xpresso_editor_is_discovered(self):
+        inventory, graphs = self.check_title('XPresso Editor', guarded=True)
+        self.assertEqual(inventory[0]['title'], 'XPresso Editor')
+        self.assertEqual(graphs[0]['window'], 123)
+        self.assertEqual(graphs[0]['kind'], 'xpresso')
+
 
 if __name__ == '__main__':
     unittest.main()

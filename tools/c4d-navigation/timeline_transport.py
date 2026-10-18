@@ -79,7 +79,9 @@ def event_state(obj):
 
 class TimelineTransport:
     def __init__(self):
-        self.direct=runpy.run_path(str(ROOT/'tools/c4d-navigation/timeline_direct.py'),run_name='spacemouse_direct_navigation')
+        bridge=ROOT/'.build/c4d-sdk/bin/Release/plugins/spacemouse.xpresso/spacemouse.xpresso.xlib'
+        self.direct=runpy.run_path(str(ROOT/'tools/c4d-navigation/timeline_direct.py'),
+            run_name='spacemouse_direct_navigation',init_globals={'SPACEMOUSE_BRIDGE':str(bridge)})
         self.native=C.CDLL(str(ROOT/'.build/libSpaceMouseTimelineV1.dylib'))
         self.native.SMTimelineDispatch.argtypes=[C.c_long,C.c_double,C.c_double,C.c_double,C.c_double,C.c_long,C.c_int]
         self.native.SMTimelineDispatch.restype=None

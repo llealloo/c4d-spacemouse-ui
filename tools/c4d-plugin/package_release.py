@@ -23,11 +23,16 @@ for name, digest in manifest.items():
         raise RuntimeError('Unsafe manifest path: ' + name)
     if hashlib.sha256((package / name).read_bytes()).hexdigest() != digest:
         raise RuntimeError('Package checksum mismatch: ' + name)
-for library in package.glob('*.dylib'):
+native_libraries = [*package.glob('*.dylib'), *package.glob('*.xlib')]
+for library in native_libraries:
     architecture = subprocess.check_output(['lipo', '-archs', str(library)], text=True).strip()
     if architecture != 'arm64':
         raise RuntimeError('Expected ARM64 library: ' + str(library))
     subprocess.run(['codesign', '--verify', '--strict', str(library)], check=True)
+    build = subprocess.check_output(['vtool', '-show-build', str(library)], text=True)
+    match = re.search(r'\bminos\s+(\d+(?:\.\d+)*)', build)
+    if not match or tuple(map(int, match.group(1).split('.'))) > (14, 0):
+        raise RuntimeError('Expected macOS 14.0-compatible library: ' + str(library))
 output = root / '.build/releases'
 output.mkdir(parents=True, exist_ok=True)
 archive = output / f'c4d-spacemouse-ui-{args.version}-macos-arm64.zip'

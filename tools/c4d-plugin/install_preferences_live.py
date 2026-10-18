@@ -9,7 +9,7 @@ nav.preference_model=model;nav.settings=model['normalise'](nav.settings);nav.sav
 nav.target=None;nav.__class__=module['Navigation']
 nav.native.SMUIRead.argtypes=[C.POINTER(module['Input'])]
 nav.native.SMUIContext.argtypes=[C.POINTER(module['Context'])]
-nav.timeline=runpy.run_path(str(nav.package/'runtime/timeline_direct.py'),run_name='spacemouse_ui_preferences_timeline',init_globals={'SPACEMOUSE_STATE':str(nav.state)})
+nav.timeline=runpy.run_path(str(nav.package/'runtime/timeline_direct.py'),run_name='spacemouse_ui_preferences_timeline',init_globals={'SPACEMOUSE_STATE':str(nav.state),'SPACEMOUSE_BRIDGE':str(nav.package/'spacemouse.xpresso.xlib')})
 nav.last_geometry=0;nav.refresh_geometry()
 owner=runpy.run_path(str(nav.package/'SpaceMouseUI.pyp'),run_name='spacemouse_ui_preferences_owner')
 identifier=owner['register_preferences']()

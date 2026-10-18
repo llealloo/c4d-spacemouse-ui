@@ -21,6 +21,10 @@ def response(value):
     # Small noise guard, followed by a linear ramp for responsive starts.
     return 0.0 if magnitude<=.01 else math.copysign((magnitude-.01)/.99,value)
 
+def navigation_axes(axes):
+    """Map the SDK translation axes to horizontal pan, vertical pan, and zoom."""
+    return axes[0],axes[2],axes[1]
+
 class Navigation:
     def __init__(self,package):
         self.package=Path(package)
@@ -42,13 +46,25 @@ class Navigation:
         self.preference_model=runpy.run_path(str(self.package/'preferences_model.py'),run_name='spacemouse_ui_preference_model')
         self.settings=self.preference_model['normalise'](self.settings)
         self.save()
-        for name,args,result in [('SMUIStart',[],None),('SMUIStop',[],None),('SMUIRead',[C.POINTER(Input)],None),('SMUIClaim',[C.c_int],None),('SMUIContext',[C.POINTER(Context)],None),('SMUICompanionRunning',[],C.c_int),('SMUIScroll',[C.c_int64,*([C.c_double]*4),C.c_int,C.c_int],C.c_int)]:
+        for name,args,result in [('SMUIStart',[],None),('SMUIStop',[],None),('SMUIRead',[C.POINTER(Input)],None),('SMUIClaim',[C.c_int],None),('SMUIContext',[C.POINTER(Context)],None),('SMUICompanionRunning',[],C.c_int),('SMUIScroll',[C.c_int64,*([C.c_double]*4),C.c_int,C.c_int],C.c_int),('SMUIXpressoDrag',[C.c_int64,*([C.c_double]*6),C.c_int,C.c_int],C.c_int)]:
             function=getattr(self.native,name);function.argtypes=args;function.restype=result
+        self.xpresso_native=None
+        try:
+            bridge=C.CDLL(str(self.package/'spacemouse.xpresso.xlib'))
+            bridge.SMGvReady.argtypes=[];bridge.SMGvReady.restype=C.c_int
+            bridge.SMGvNavigate.argtypes=[*([C.c_double]*4),C.c_int,C.c_int]
+            bridge.SMGvNavigate.restype=C.c_int
+            bridge.SMGvStatus.argtypes=[C.c_int];bridge.SMGvStatus.restype=C.c_int
+            bridge.SMGvAddress.argtypes=[C.c_int];bridge.SMGvAddress.restype=C.c_uint64
+            bridge.SMGvMetric.argtypes=[C.c_int];bridge.SMGvMetric.restype=C.c_double
+            self.xpresso_native=bridge
+        except Exception as error:print('SpaceMouse UI XPresso bridge unavailable:',error)
         source=self.package/'runtime'
         self.geometry=runpy.run_path(str(source/'inspect_native_views.py'),run_name='spacemouse_ui_geometry')
         self.timeline=None
         try:
-            self.timeline=runpy.run_path(str(source/'timeline_direct.py'),run_name='spacemouse_ui_timeline',init_globals={'SPACEMOUSE_STATE':str(self.state)})
+            self.timeline=runpy.run_path(str(source/'timeline_direct.py'),run_name='spacemouse_ui_timeline',init_globals={
+                'SPACEMOUSE_STATE':str(self.state),'SPACEMOUSE_BRIDGE':str(self.package/'spacemouse.xpresso.xlib')})
         except Exception as error:print('SpaceMouse UI Timeline unavailable:',error)
         self.last_tick=time.monotonic();self.last_geometry=0;self.last_status=0
         self.viewports=[];self.graphs=[];self.timelines=[];self.target=None
@@ -116,6 +132,14 @@ class Navigation:
         if not hasattr(self,'_node_geometry'):
             self._node_geometry=runpy.run_path(str(self.package/'runtime/docked_node_geometry.py'),run_name='spacemouse_ui_node_geometry')
         graphs=self._node_geometry['read_node_graphs'](self.geometry,self.timeline,frames)
+        if not hasattr(self,'_graph_scale_reader'):
+            self._graph_scale_reader=False
+            try:self._graph_scale_reader=runpy.run_path(str(self.package/'node_pan_scale.py'))['ScaleReader'](self.timeline)
+            except Exception as error:print('SpaceMouse UI: docked XPresso classification unavailable:',error)
+        for graph in graphs:
+            if 'kind' not in graph and self._graph_scale_reader and graph.get('message'):
+                graph['kind']='node' if self._graph_scale_reader.scale(graph['message']) is not None else 'xpresso'
+            graph.setdefault('kind','node')
         timelines=self.timeline['public_regions']() if self.timeline else []
         self.viewports,self.graphs,self.timelines=frames,graphs,timelines
         self.last_geometry=time.monotonic()
@@ -143,12 +167,15 @@ class Navigation:
         for graph in self.graphs:
             bounds=tuple(graph[k] for k in ('x','y','width','height'))
             if graph['window']==window and contains(bounds,x,y):
-                return ('node',window,0,False,bounds)
-        if title in ('Node Editor','Node Editor *'):
+                return (graph.get('kind','node'),window,0,False,bounds)
+        if title in ('Node Editor','Node Editor *','XPresso Editor'):
             graph=next((p for p in self.graphs if p['window']==window),None)
-            if not graph:return None
+            if not graph:
+                if title!='XPresso Editor':return None
+                bounds=(context.wx+4,context.wy+28,context.width-8,context.height-32)
+                return ('auto',window,0,False,bounds) if contains(bounds,x,y) else None
             bounds=tuple(graph[k] for k in ('x','y','width','height'))
-            if contains(bounds,x,y):return ('node',window,0,False,bounds)
+            if contains(bounds,x,y):return ('xpresso' if title=='XPresso Editor' else 'node',window,0,False,bounds)
             inspector=(context.wx+2,bounds[1],context.width-4,bounds[3])
             if contains(inspector,x,y):return ('scroll',window,0,False,inspector)
             return None
@@ -163,7 +190,11 @@ class Navigation:
             top=106 if attributes else 55
             bounds=(context.wx+8,context.wy+top,context.width-16,context.height-top-8)
         else:return None
-        return ('scroll',window,0,attributes,bounds) if contains(bounds,x,y) else None
+        if not contains(bounds,x,y):return None
+        # A docked XPresso canvas is a transient native child and may not be
+        # present during the periodic geometry scan. Resolve it under the
+        # pointer in the native bridge, falling back to ordinary panel scroll.
+        return ('auto' if main else 'scroll',window,0,attributes,bounds)
 
     def activate_hovered_viewport(self,context,input,now):
         """Return True while a vendor stop/activation handoff owns input."""
@@ -230,6 +261,13 @@ class Navigation:
         context=self.context
         if kind=='timeline':
             self.timeline['navigate']({'window':window,'screen':[context.x,context.y],'dx':dx,'dy':dy,'phase':phase,'zoom':zoom})
+        elif kind=='xpresso':
+            if self.xpresso_native and self.xpresso_native.SMGvReady():
+                self.xpresso_navigate(context,dx,dy,phase,zoom)
+        elif kind=='auto':
+            handled=(self.xpresso_native and self.xpresso_native.SMGvReady() and
+                self.xpresso_navigate(context,dx,dy,phase,zoom))
+            if not handled:self.native.SMUIScroll(window,context.x,context.y,dx,dy,phase,int(zoom))
         else:
             x,y=context.x,context.y
             if kind=='node' and zoom:x,y=bounds[0]+bounds[2]*.5,bounds[1]+bounds[3]*.5
@@ -237,8 +275,20 @@ class Navigation:
             if transport:transport.post(window,x,y,dx,dy,phase,zoom)
             else:self.native.SMUIScroll(window,x,y,dx,dy,phase,int(zoom))
 
+    def xpresso_navigate(self,context,dx,dy,phase,zoom):
+        result=self.xpresso_native.SMGvNavigate(context.x,context.y,dx,dy,phase,int(zoom))
+        now=time.monotonic()
+        if hasattr(self.xpresso_native,'SMGvStatus') and hasattr(self,'state') and now>=getattr(self,'_xpresso_status_next',0):
+            self._xpresso_status_next=now+1
+            keys=('accepted','calls','document','tags','masters','guis','areas','hovered','width','height','localX','localY','globalX','globalY')
+            status={key:self.xpresso_native.SMGvStatus(index) for index,key in enumerate(keys)}
+            status.update(gui=hex(self.xpresso_native.SMGvAddress(0)),area=hex(self.xpresso_native.SMGvAddress(1)))
+            status.update(result=result,screen=[context.x,context.y],delta=[dx,dy],phase=phase,zoom=bool(zoom),time=time.time())
+            (self.state/'xpresso-bridge.json').write_text(json.dumps(status))
+        return result
+
     def sensitivity_profile(self,context,target):
-        if target[0]=='node':return 'node'
+        if target[0] in ('node','xpresso','auto'):return 'node'
         if target[0]!='timeline':return 'lists'
         panel=next((p for p in self.timelines if p['window']==target[1] and p['index']==target[2]),{})
         if context.x<panel.get('plotX',float('-inf')):return 'tracks'
@@ -258,7 +308,7 @@ class Navigation:
             else:self.remainders[:2]=[0.0,0.0]
             return
         kind=self.target[0] if getattr(self,'target',None) else None
-        if kind=='timeline' or (kind=='node' and self.node_transport()):
+        if kind in ('timeline','xpresso','auto') or (kind=='node' and self.node_transport()):
             if not running:self.post(0,0,128,zoom)
             self.post(dx,dy,2 if running else 1,zoom);self.gestures[index]=True
             return
@@ -298,9 +348,10 @@ class Navigation:
             elif now-input.lastInput>.25:self.end();self.status='Ready over %s (%s reports)'%(target[0],input.reports)
             else:
                 vertical=target[3];kind=target[0]
-                dx=(0 if vertical else response(input.axes[0]))*1000*dt*(-1 if self.settings['invertHorizontal'] else 1)
-                dy=-response(input.axes[2])*1000*dt*(-1 if self.settings['invertVertical'] else 1)
-                zoom=response(input.axes[1])*350*self.settings['zoomGain']*dt if self.settings['zoomEnabled'] and kind in ('timeline','node') else 0
+                horizontal,vertical_pan,depth=navigation_axes(input.axes)
+                dx=(0 if vertical else response(horizontal))*1000*dt*(-1 if self.settings['invertHorizontal'] else 1)
+                dy=-response(vertical_pan)*1000*dt*(-1 if self.settings['invertVertical'] else 1)
+                zoom=response(depth)*350*self.settings['zoomGain']*dt if self.settings['zoomEnabled'] and kind in ('timeline','node','xpresso','auto') else 0
                 profile=self.settings['panels'][self.sensitivity_profile(context,target)]
                 dx*=self.settings['panGain']*profile['panX']
                 dy*=self.settings['panGain']*profile['panY']
@@ -311,7 +362,9 @@ class Navigation:
             if self.timeline:self.timeline['flush_redraw']()
             if getattr(self,'diagnostics',False) and now-self.last_status>=1:
                 self.last_status=now
-                (self.state/'status.json').write_text(json.dumps({'pid':os.getpid(),'timestamp':time.time(),'status':self.status,'inputReady':bool(input.ready),'client':input.client,'reports':input.reports,'claimed':bool(input.claimed),'timelineCount':len(self.timelines),'nodeCount':len(self.graphs),'target':self.target}))
+                (self.state/'status.json').write_text(json.dumps({'pid':os.getpid(),'timestamp':time.time(),'status':self.status,'inputReady':bool(input.ready),'client':input.client,'reports':input.reports,'claimed':bool(input.claimed),'timelineCount':len(self.timelines),'nodeCount':len(self.graphs),'target':self.target,
+                    'pointer':[context.x,context.y],'window':context.window,'title':context.title.decode(errors='replace'),
+                    'viewports':self.viewports,'graphs':self.graphs}))
         except Exception as error:
             if getattr(self,'hover_gate',None):self.hover_gate.SMHoverGateSet(0,0,0,0,0,0)
             self.native.SMUIClaim(0)

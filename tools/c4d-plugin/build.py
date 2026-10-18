@@ -6,26 +6,35 @@ import hashlib
 import json
 root=Path(__file__).resolve().parents[2]
 dest=root/'.build/plugin/SpaceMouseUI'
+deployment_target='14.0'
 dest.mkdir(parents=True,exist_ok=True)
 shutil.copy2(root/'tools/c4d-plugin/plugin_ids.py',dest/'plugin_ids.py')
 for name in ('SpaceMouseUI.pyp','file_dialog_scroll.py','plugin_runtime.py','node_pan_scale.py','node_event_transport.py','preferences_model.py','preferences_ui.py','settings_dialog.py','viewport_activation.py','vendor_motion_reset.py','ortho_hover.py','README.txt'):
  shutil.copy2(root/'tools/c4d-plugin'/name,dest/name)
 shutil.copy2(root/'LICENSE',dest/'LICENSE')
 shutil.copy2(root/'docs/INSTALLATION.md',dest/'INSTALLATION.md')
+native=root/'.build/c4d-sdk/bin/Release/plugins/spacemouse.xpresso/spacemouse.xpresso.xlib'
+if not native.exists():raise RuntimeError('Build the native XPresso bridge before packaging')
+shutil.copy2(native,dest/'spacemouse.xpresso.xlib')
 subprocess.run(['clang','-fobjc-arc','-O2','-Wall','-Wextra','-Wno-unused-parameter','-dynamiclib',
+ f'-mmacosx-version-min={deployment_target}',
  '-I/Library/Frameworks/3DconnexionClient.framework/Headers','-F/Library/Frameworks','-framework','3DconnexionClient',
  '-framework','AppKit','-framework','ApplicationServices',str(root/'tools/c4d-plugin/input_bridge.m'),'-o',str(dest/'libSpaceMouseUIInput.dylib')],check=True)
 subprocess.run(['codesign','--force','--sign','-','--identifier','local.spacemouse.c4d.ui.input',str(dest/'libSpaceMouseUIInput.dylib')],check=True)
 subprocess.run(['clang','-fobjc-arc','-O2','-Wall','-dynamiclib','-framework','AppKit',
+ f'-mmacosx-version-min={deployment_target}',
  str(root/'tools/c4d-plugin/hover_gate.m'),'-o',str(dest/'libSpaceMouseUIHover.dylib')],check=True)
 subprocess.run(['codesign','--force','--sign','-','--identifier','local.spacemouse.c4d.ui.hover',str(dest/'libSpaceMouseUIHover.dylib')],check=True)
 subprocess.run(['clang','-O2','-Wall','-Wextra','-Werror','-std=c11','-dynamiclib',
+ f'-mmacosx-version-min={deployment_target}',
  str(root/'tools/c4d-plugin/ortho_draw.c'),'-o',str(dest/'libSpaceMouseUIOrtho.dylib')],check=True)
 subprocess.run(['codesign','--force','--sign','-','--identifier','local.spacemouse.c4d.ui.ortho',str(dest/'libSpaceMouseUIOrtho.dylib')],check=True)
 subprocess.run(['clang','-fobjc-arc','-O2','-Wall','-Wextra','-Wno-unused-parameter','-dynamiclib',
+ f'-mmacosx-version-min={deployment_target}',
  '-framework','AppKit','-framework','ApplicationServices',str(root/'tools/c4d-plugin/scroll_transport.m'),'-o',str(dest/'libSpaceMouseUIScroll.dylib')],check=True)
 subprocess.run(['codesign','--force','--sign','-','--identifier','local.spacemouse.c4d.ui.scroll',str(dest/'libSpaceMouseUIScroll.dylib')],check=True)
 subprocess.run(['clang','-fobjc-arc','-O2','-Wall','-Wextra','-Wno-unused-parameter','-dynamiclib',
+ f'-mmacosx-version-min={deployment_target}',
  '-I/Library/Frameworks/3DconnexionClient.framework/Headers','-F/Library/Frameworks','-framework','3DconnexionClient',
  '-framework','AppKit','-framework','ApplicationServices',str(root/'tools/c4d-plugin/file_dialog_scroll.m'),'-o',str(dest/'libSpaceMouseUIDialog.dylib')],check=True)
 subprocess.run(['codesign','--force','--sign','-','--identifier','local.spacemouse.c4d.ui.dialog',str(dest/'libSpaceMouseUIDialog.dylib')],check=True)

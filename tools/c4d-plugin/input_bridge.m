@@ -154,15 +154,20 @@ __attribute__((visibility("default"))) void SMUIContext(SMContext *out) {
     out->buttons=(int)NSEvent.pressedMouseButtons;
     CGEventRef cursor=CGEventCreate(NULL);CGPoint point=CGEventGetLocation(cursor);CFRelease(cursor);
     out->x=point.x;out->y=point.y;
-    CGFloat primary=NSScreen.screens.firstObject.frame.size.height;
-    NSPoint cocoa=NSMakePoint(point.x,primary-point.y);
-    NSInteger under=[NSWindow windowNumberAtPoint:cocoa belowWindowWithWindowNumber:0];
+    CGFloat primaryTop=NSMaxY(NSScreen.screens.firstObject.frame);
+    NSWindow *resolved=nil;
     for(NSWindow *window in NSApp.orderedWindows) {
-        if(!window.visible || window.miniaturized || window.windowNumber!=under)continue;
-        out->window=window.windowNumber;
-        NSRect frame=window.frame;out->wx=frame.origin.x;out->wy=primary-NSMaxY(frame);out->width=frame.size.width;out->height=frame.size.height;
-        strlcpy(out->title,window.title.UTF8String?:"",sizeof out->title);break;
+        if(!window.visible || window.miniaturized)continue;
+        NSRect frame=window.frame;
+        NSRect quartzFrame=NSMakeRect(frame.origin.x,primaryTop-NSMaxY(frame),frame.size.width,frame.size.height);
+        if(NSPointInRect(NSMakePoint(point.x,point.y),quartzFrame)){resolved=window;break;}
     }
+    // Never substitute the key/main window for a failed hit. Doing so can
+    // release a floating panel's input claim and leak motion to the viewport.
+    if(!resolved)return;
+    out->window=resolved.windowNumber;
+    NSRect frame=resolved.frame;out->wx=frame.origin.x;out->wy=primaryTop-NSMaxY(frame);out->width=frame.size.width;out->height=frame.size.height;
+    strlcpy(out->title,resolved.title.UTF8String?:"",sizeof out->title);
 }
 @interface SMUIEventPosition : NSObject
 @property NSPoint point;
@@ -171,6 +176,17 @@ __attribute__((visibility("default"))) void SMUIContext(SMContext *out) {
 @end
 static char positionKey;
 static NSPoint eventLocation(id event,SEL selector) {return ((SMUIEventPosition*)objc_getAssociatedObject(event,&positionKey)).point;}
+static NSEvent *eventAtWindowPoint(NSEvent *event,NSPoint point) {
+    static Class eventClass;static dispatch_once_t once;
+    dispatch_once(&once,^{
+        eventClass=objc_allocateClassPair(object_getClass(event),"SpaceMouseUIPluginPositionedEvent",0);
+        class_addMethod(eventClass,@selector(locationInWindow),(IMP)eventLocation,"{CGPoint=dd}@:");
+        objc_registerClassPair(eventClass);
+    });
+    SMUIEventPosition *position=[SMUIEventPosition new];position.point=point;
+    objc_setAssociatedObject(event,&positionKey,position,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    object_setClass(event,eventClass);return event;
+}
 static NSEvent *makeScroll(NSWindow *window,NSPoint screen,double dx,double dy,int phase,BOOL zoom) {
     CGEventRef raw=CGEventCreateScrollWheelEvent(NULL,kCGScrollEventUnitPixel,2,(int32_t)llround(dy),(int32_t)llround(dx));
     CGEventSetDoubleValueField(raw,kCGScrollWheelEventFixedPtDeltaAxis1,dy/10.0);
@@ -183,12 +199,7 @@ static NSEvent *makeScroll(NSWindow *window,NSPoint screen,double dx,double dy,i
     CGEventSetTimestamp(raw,(uint64_t)(NSProcessInfo.processInfo.systemUptime*1e9));
     CGEventSetLocation(raw,NSPointToCGPoint(screen));
     NSEvent *event=[NSEvent eventWithCGEvent:raw];CFRelease(raw);
-    static Class eventClass;static dispatch_once_t once;
-    dispatch_once(&once,^{eventClass=objc_allocateClassPair(object_getClass(event),"SpaceMouseUIPluginScrollEvent",0);class_addMethod(eventClass,@selector(locationInWindow),(IMP)eventLocation,"{CGPoint=dd}@:");objc_registerClassPair(eventClass);});
-    SMUIEventPosition *position=[SMUIEventPosition new];
-    position.point=[window convertPointFromScreen:NSMakePoint(screen.x,NSScreen.screens.firstObject.frame.size.height-screen.y)];
-    objc_setAssociatedObject(event,&positionKey,position,OBJC_ASSOCIATION_RETAIN_NONATOMIC);object_setClass(event,eventClass);
-    return event;
+    return eventAtWindowPoint(event,[window convertPointFromScreen:NSMakePoint(screen.x,NSScreen.screens.firstObject.frame.size.height-screen.y)]);
 }
 __attribute__((visibility("default"))) int SMUIScroll(int64_t windowID,double x,double y,double dx,double dy,int phase,int zoom) {
     if(!NSThread.isMainThread || !NSApp.active)return 0;
@@ -204,6 +215,67 @@ __attribute__((visibility("default"))) int SMUIScroll(int64_t windowID,double x,
     if(!view)view=window.contentView;
     [view mouseMoved:hover];
     [view scrollWheel:event];
+    return 1;
+}
+static void postXpressoMouseEvent(NSWindow *window,NSEventType type,NSPoint location,BOOL zoom,CGFloat pressure) {
+    NSPoint screen=[window convertPointToScreen:location];
+    CGPoint quartz=CGPointMake(screen.x,NSScreen.screens.firstObject.frame.size.height-screen.y);
+    CGMouseButton button=zoom?kCGMouseButtonRight:kCGMouseButtonCenter;
+    CGEventType cgType;
+    if(zoom)cgType=type==NSEventTypeRightMouseDown?kCGEventRightMouseDown:
+        type==NSEventTypeRightMouseUp?kCGEventRightMouseUp:kCGEventRightMouseDragged;
+    else cgType=type==NSEventTypeOtherMouseDown?kCGEventOtherMouseDown:
+        type==NSEventTypeOtherMouseUp?kCGEventOtherMouseUp:kCGEventOtherMouseDragged;
+    CGEventRef raw=CGEventCreateMouseEvent(NULL,cgType,quartz,button);
+    CGEventSetFlags(raw,kCGEventFlagMaskAlternate);
+    CGEventSetDoubleValueField(raw,kCGMouseEventPressure,pressure);
+    CGEventSetIntegerValueField(raw,(CGEventField)51,window.windowNumber);
+    CGEventSetTimestamp(raw,(uint64_t)(NSProcessInfo.processInfo.systemUptime*1e9));
+    // Queue the event back to this process instead of invoking AppKit
+    // responders. C4D translates queued platform events into its BFM_INPUT
+    // queue, which XPresso's MouseDrag()/GetInputState() loop consumes.
+    CGEventPostToPid(getpid(),raw);CFRelease(raw);
+}
+// XPresso's wheel path is quantized. Option+MMB pan and Option+RMB zoom are
+// its native continuous navigation gestures. Reproduce each input delta as a
+// complete local gesture so pan and zoom never leave conflicting buttons held.
+__attribute__((visibility("default"))) int SMUIXpressoDrag(int64_t windowID,
+    double x,double y,double width,double height,double dx,double dy,int phase,int zoom) {
+    if(!NSThread.isMainThread || !isfinite(dx) || !isfinite(dy))return 0;
+    if(!NSApp.active)return 0;
+    NSWindow *window=nil;
+    for(NSWindow *candidate in NSApp.windows)
+        if(candidate.windowNumber==windowID && candidate.visible){window=candidate;break;}
+    if(!window)return 0;
+    CGFloat primary=NSScreen.screens.firstObject.frame.size.height;
+    Class maxon=NSClassFromString(@"MaxonView");
+    NSView *view=nil;NSPoint start;
+    CGEventRef cursor=CGEventCreate(NULL);CGPoint point=CGEventGetLocation(cursor);CFRelease(cursor);
+    NSPoint hover=[window convertPointFromScreen:NSMakePoint(point.x,primary-point.y)];
+    if(width<0 || height<0) {
+        // Docked XPresso's drawing view is attached and detached by C4D, so
+        // resolve it under the physical pointer for each packet instead of
+        // relying on a periodically cached private view pointer.
+        view=[window.contentView hitTest:hover];
+        while(view && maxon && ![view isKindOfClass:maxon])view=view.superview;
+        if(!view || view==window.contentView || view.bounds.size.width<200 || view.bounds.size.height<100)return 0;
+        start=[view convertPoint:NSMakePoint(NSMidX(view.bounds),NSMidY(view.bounds)) toView:nil];
+    } else {
+        if(width<100 || height<60)return 0;
+        NSPoint screenCenter=NSMakePoint(x+width*.5,y+height*.5);
+        start=[window convertPointFromScreen:NSMakePoint(screenCenter.x,primary-screenCenter.y)];
+        view=[window.contentView hitTest:start];
+        while(view && maxon && ![view isKindOfClass:maxon])view=view.superview;
+        if(!view)return 0;
+    }
+    if(phase!=1 && phase!=2)return 1;
+    NSPoint end=NSMakePoint(start.x+dx,start.y-dy);
+    NSEventType down=zoom?NSEventTypeRightMouseDown:NSEventTypeOtherMouseDown;
+    NSEventType dragged=zoom?NSEventTypeRightMouseDragged:NSEventTypeOtherMouseDragged;
+    NSEventType up=zoom?NSEventTypeRightMouseUp:NSEventTypeOtherMouseUp;
+    postXpressoMouseEvent(window,down,start,zoom,1.0);
+    postXpressoMouseEvent(window,dragged,end,zoom,1.0);
+    postXpressoMouseEvent(window,up,end,zoom,0.0);
     return 1;
 }
 __attribute__((visibility("default"))) int SMUICompanionRunning(void) {

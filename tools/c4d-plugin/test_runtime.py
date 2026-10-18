@@ -10,6 +10,17 @@ sys.modules['c4d']=types.ModuleType('c4d')
 spec=importlib.util.spec_from_file_location('plugin_runtime',Path(__file__).with_name('plugin_runtime.py'))
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 
+class NativeWindowContext(unittest.TestCase):
+    def test_pointer_context_never_falls_back_to_key_or_main_window(self):
+        source=Path(__file__).with_name('input_bridge.m').read_text()
+        body=source[source.index('void SMUIContext'):source.index('@interface SMUIEventPosition')]
+        self.assertIn('NSApp.orderedWindows',body)
+        self.assertIn('NSPointInRect',body)
+        self.assertIn('primaryTop-NSMaxY(frame)',body)
+        self.assertNotIn('NSApp.keyWindow',body)
+        self.assertNotIn('NSApp.mainWindow',body)
+        self.assertNotIn('windowNumberAtPoint',body)
+
 class Routing(unittest.TestCase):
     def setUp(self):
         self.nav=m.Navigation.__new__(m.Navigation)
@@ -36,11 +47,27 @@ class Routing(unittest.TestCase):
     def test_modified_floating_graph_and_inspector_remain_routable(self):
         self.assertEqual(self.nav.route(self.context(690,300,2,b'Node Editor *'))[0],'node')
         self.assertEqual(self.nav.route(self.context(1000,300,2,b'Node Editor *'))[0],'scroll')
+    def test_floating_xpresso_graph_and_manager_remain_routable(self):
+        self.nav.graphs[0]['kind']='xpresso'
+        self.assertEqual(self.nav.route(self.context(690,300,2,b'XPresso Editor'))[0],'xpresso')
+        self.assertEqual(self.nav.route(self.context(1000,300,2,b'XPresso Editor'))[0],'scroll')
+    def test_floating_xpresso_without_cached_graph_uses_live_detection(self):
+        self.nav.graphs=[]
+        c=self.context(400,300,2,b'XPresso Editor');c.wx=0;c.wy=0
+        self.assertEqual(self.nav.route(c)[0],'auto')
     def test_docked_node_graph_uses_its_own_bounds(self):
         self.nav.graphs=[dict(window=1,x=20,y=110,width=700,height=400)]
         target=self.nav.route(self.context(690,300))
         self.assertEqual(target[0],'node')
         self.assertEqual(target[4],(20,110,700,400))
+    def test_docked_xpresso_graph_uses_the_same_surface_route(self):
+        self.nav.graphs=[dict(window=1,x=20,y=110,width=700,height=400,kind='xpresso')]
+        target=self.nav.route(self.context(400,300,1,b'Project - Main'))
+        self.assertEqual(target[0],'xpresso')
+        self.assertEqual(target[4],(20,110,700,400))
+    def test_main_window_falls_back_to_live_canvas_detection(self):
+        self.nav.graphs=[]
+        self.assertEqual(self.nav.route(self.context(900,600))[0],'auto')
     def test_foreground_and_button_guards(self):
         c=self.context(400,700);c.active=0;self.assertIsNone(self.nav.route(c))
         c.active=1;c.buttons=1;self.assertIsNone(self.nav.route(c))
@@ -48,6 +75,39 @@ class Routing(unittest.TestCase):
         self.assertIsNone(self.nav.route(self.context(400,700,99,b'Unrelated')))
 
 class Gestures(unittest.TestCase):
+    def test_sdk_axes_preserve_established_physical_mapping(self):
+        axes=(11,22,33,44,55,66)
+        self.assertEqual(m.navigation_axes(axes),(11,33,22))
+
+    def test_live_canvas_detection_falls_back_to_scroll(self):
+        n=m.Navigation.__new__(m.Navigation)
+        n.target=('auto',7,0,False,(20,100,700,400));n.context=types.SimpleNamespace(x=50,y=150)
+        n.xpresso_native=None
+        events=[]
+        n.native=types.SimpleNamespace(
+            SMUIXpressoDrag=lambda *args:events.append(('drag',args)) or 0,
+            SMUIScroll=lambda *args:events.append(('scroll',args)))
+        n.post(2,3,1,False)
+        self.assertEqual(events,[('scroll',(7,50,150,2,3,1,0))])
+    def test_xpresso_uses_native_graph_input(self):
+        n=m.Navigation.__new__(m.Navigation)
+        n.target=('xpresso',7,0,False,(20,100,700,400))
+        n.context=types.SimpleNamespace(x=50,y=150)
+        events=[]
+        n.xpresso_native=types.SimpleNamespace(SMGvReady=lambda:1,SMGvNavigate=lambda *args:events.append(args))
+        n.post(2,3,1,False);n.post(0,4,2,True);n.post(0,0,4,False)
+        self.assertEqual(events,[(50,150,2,3,1,0),(50,150,0,4,2,1),(50,150,0,0,4,0)])
+
+    def test_xpresso_does_not_fall_back_to_rejected_generic_scroll(self):
+        n=m.Navigation.__new__(m.Navigation)
+        n.target=('xpresso',7,0,False,(20,100,700,400))
+        n.context=types.SimpleNamespace(x=50,y=150)
+        events=[]
+        n.xpresso_native=None
+        n.native=types.SimpleNamespace(SMUIScroll=lambda *args:events.append(args))
+        n.post(2,3,1,False)
+        self.assertEqual(events,[])
+
     def test_centered_zoom_keeps_physical_context(self):
         n=m.Navigation.__new__(m.Navigation)
         n.target=('node',1,0,False,(20,100,700,400));n._node_transport=None

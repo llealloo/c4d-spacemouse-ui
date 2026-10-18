@@ -18,6 +18,8 @@ objc.sel_registerName.restype = C.c_void_p
 objc.object_getClassName.argtypes = [C.c_void_p]
 objc.object_getClassName.restype = C.c_char_p
 
+FLOATING_GRAPH_TITLES = ('Node Editor', 'Node Editor *', 'XPresso Editor')
+
 def call(obj, selector, restype=C.c_void_p, args=(), types=()):
     fn = C.CFUNCTYPE(restype, C.c_void_p, C.c_void_p, *types)(('objc_msgSend', objc))
     return fn(obj, objc.sel_registerName(selector.encode()), *args)
@@ -32,7 +34,7 @@ def inventory():
     for i in range(call(windows, 'count', C.c_ulong)):
         window = call(windows, 'objectAtIndex:', args=(i,), types=(C.c_ulong,))
         title = text(call(window, 'title'))
-        if title not in ('Node Editor', 'Node Editor *'): continue
+        if title not in FLOATING_GRAPH_TITLES: continue
         result = {'title': title, 'window': call(window, 'windowNumber', C.c_long), 'views': []}
         def walk(view, depth=0):
             if not view or depth>30: return
@@ -55,7 +57,7 @@ def read_node_graphs():
     primary_height = call(primary, 'frame', Rect).size.height
     result = []
     for window in inventory():
-        if window['title'] not in ('Node Editor', 'Node Editor *'): continue
+        if window['title'] not in FLOATING_GRAPH_TITLES: continue
         views = window['views']
         if not views: continue
         content = views[0]['screen']

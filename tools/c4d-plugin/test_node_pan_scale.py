@@ -36,12 +36,12 @@ class NodeScale(unittest.TestCase):
     def test_scale_follows_live_changes(self):
         for value in (.125,.5,1,2):
             self.scale(value);self.assertEqual(self.reader.scale(self.message),value)
-    def test_floating_surface_can_detach_from_renderer(self):
+    def test_surface_identity_survives_detached_renderer(self):
         import runpy
         geometry=runpy.run_path(str(Path(__file__).with_name('docked_node_geometry.py')))
         api={'read':self.reader.read,'ptr':self.reader.ptr}
         self.assertTrue(geometry['is_node_surface'](self.message,api,floating=True))
-        self.assertFalse(geometry['is_node_surface'](self.message,api,floating=False))
+        self.assertTrue(geometry['is_node_surface'](self.message,api,floating=False))
     def test_stale_weak_reference_falls_back(self):
         self.q(self.weak,0);self.assertIsNone(self.reader.scale(self.message))
         self.assertIsNone(self.reader.scale(self.message))

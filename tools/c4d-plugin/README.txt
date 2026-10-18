@@ -19,7 +19,11 @@ and Data Access (called Accessibility on earlier macOS versions). Other panel
 navigation does not require this permission. Driver profiles are unchanged.
 Dialog scrolling starts automatically with the vendor connection, keeps the
 accepted horizontal/vertical tuning, and restores its callback before shutdown.
-Timeline navigation retains the accepted version-guarded direct view updates.
+Timeline navigation retains the accepted direct view updates. Its private C4D
+entry points are located from unique implementation signatures at runtime, and
+the embedded Timeline user-area layout is discovered from live objects. There
+is no whole-binary hash or fixed image address; an unrecognized implementation
+is rejected instead of being called.
 Timeline graph motion passes fractional deltas on every update. Horizontal view
 ranges use reduced integral time fractions with microsecond precision. Vertical
 Dope Sheet/track-list scrolling accumulates fractional pixels per live area and
@@ -39,9 +43,11 @@ Navigation starts enabled. Existing
 companion direction/zoom preferences migrate on first launch. Settings are stored under C4D's prefs/SpaceMouseUI directory. Routine navigation logging is disabled; failures are reported in the C4D Console.
 
 This is an experimental prerelease tested only on macOS Apple Silicon.
-Windows, Linux, Intel Macs, and other C4D versions have not been tested. The native
-Timeline offsets and SDK callback adapter support the inspected C4D 2027
-and installed 3DconnexionClient builds only. Registered Maxon
+Windows, Linux, Intel Macs, and other C4D versions have not been tested. Timeline
+navigation is adaptive across compatible C4D rebuilds but remains a guarded
+private-ABI integration, not a promise of support for every future release. The
+SDK callback adapter still supports the inspected C4D 2027 and installed
+3DconnexionClient builds only. Registered Maxon
 IDs: Settings Command 1071577, Input Service 1071578, Preferences 1071579.
 The driver framework is referenced from its installed location, not bundled.
 
@@ -59,7 +65,11 @@ If the native Preferences category is unavailable, Extensions > SpaceMouse UI op
 
 3D viewport hover activation uses C4D active-view selection and the existing vendor Navlib motion reset. Continuous cross-view motion retains each camera orientation, with no explicit settling waits. Panel motion uses a 1% dead zone and linear response.
 
-Node graph panning keeps screen speed constant across zoom levels, matching Blender's View2D conversion. Node events retain fractional pan/zoom deltas instead of accumulating whole-unit scroll ticks. Zoom input compensates for the inspected C4D scroll response to produce Blender-style reciprocal view-scale changes, retaining the previous small-motion gain. Zoom remains graph-centered; panel sensitivities still apply. These changes affect Node graphs only. A separate local scroll helper preserves the accepted vendor input connection. Unsupported builds retain the previous scroll-event route.
+Node and XPresso graph panning keeps screen speed constant across zoom levels,
+and zoom remains graph-centered. Their direct graph-state integration resolves
+its private routines and helper layout at runtime and fails closed when the
+implementation is unfamiliar. A separate local scroll helper preserves the
+accepted vendor input connection.
 
 
 Component-mode stutter workaround: while SpaceMouse navigation is active in point/edge/polygon mode, unclicked mouse-move events inside the hovered 3D viewport are suppressed locally. Physical pointer movement, clicks and drags are untouched; hover processing resumes at rest. Toggle in Preferences > SpaceMouse UI > Prevent component-mode navigation stutter. Orthographic component hover is restored by the separate drawing compatibility correction described below.

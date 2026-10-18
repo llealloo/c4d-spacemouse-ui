@@ -3,8 +3,8 @@
 ## Compatibility and requirements
 
 Only tested on **macOS Apple Silicon with Cinema 4D 2027**. This release contains
-ARM64 macOS libraries. Windows, Linux, Intel Macs, and other Cinema 4D versions
-have not been tested and are not supported by this build.
+ARM64 libraries with a macOS 14.0 deployment target. Windows, Linux, Intel Macs,
+and other Cinema 4D versions have not been tested and are not supported.
 
 Install the official 3Dconnexion driver and Cinema 4D plugin, and keep
 3DconnexionHelper running. SpaceMouse UI extends their navigation; it does not
@@ -23,7 +23,7 @@ not guaranteed. The orthographic-hover workaround currently expects C4D at
 
 1. In Cinema 4D Preferences, use **Open Preferences Folder** to locate the active
    user preferences directory, then quit Cinema 4D.
-2. Download `c4d-spacemouse-ui-v0.1.0-preview.3-macos-arm64.zip` from the GitHub
+2. Download `c4d-spacemouse-ui-v0.1.0-preview.4-macos-arm64.zip` from the GitHub
    release and extract it. Use the plugin ZIP, rather than GitHub's source archives.
 3. Create a `plugins` folder in the preferences directory if needed. Copy the
    extracted `SpaceMouseUI` folder into it. The resulting path should be
