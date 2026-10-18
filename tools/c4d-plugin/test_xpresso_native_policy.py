@@ -15,7 +15,8 @@ class XPressoRejectedTransport(unittest.TestCase):
         source=(Path(__file__).parents[1]/'c4d-native/source/main.cpp').read_text()
         self.assertIn('kSetTranslationSignature',source)
         self.assertIn('kGetTranslationSignature',source)
-        self.assertIn('api.setTranslation(helper, gui, root, x + deltaX, y + deltaY)',source)
+        self.assertIn('gui->GetZoom(root, zoom)',source)
+        self.assertIn('x + deltaX / zoom, y + deltaY / zoom',source)
         self.assertIn('gui->Redraw()',source)
 
     def test_bridge_uses_node_editors_reciprocal_zoom_curve(self):

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.0-preview.5
+
+- Compensate direct XPresso translation by its live zoom so panning retains a
+  continuous screen-space speed across the full zoom range.
+- Add independent XPresso horizontal pan, vertical pan, and zoom sensitivity
+  controls, promoting the accepted 130% pan and 80% zoom adjustments to the
+  new 100% baseline without changing physical motion.
+
 ## v0.1.0-preview.4
 
 - Add direct, smooth, graph-centered pan and proportional zoom for legacy XPresso
@@ -16,7 +24,6 @@
   discovery/routing/transport regressions for both hosting modes.
 - Correct the shared navigation-axis mapping so cap lift/drop is vertical pan or
   scroll and fore/aft motion is zoom.
-
 - Build all six native libraries for macOS 14.0 and validate architecture,
   signatures, and deployment targets during release packaging.
 

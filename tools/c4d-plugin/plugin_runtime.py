@@ -288,7 +288,8 @@ class Navigation:
         return result
 
     def sensitivity_profile(self,context,target):
-        if target[0] in ('node','xpresso','auto'):return 'node'
+        if target[0]=='node':return 'node'
+        if target[0] in ('xpresso','auto'):return 'xpresso'
         if target[0]!='timeline':return 'lists'
         panel=next((p for p in self.timelines if p['window']==target[1] and p['index']==target[2]),{})
         if context.x<panel.get('plotX',float('-inf')):return 'tracks'

@@ -23,7 +23,7 @@ not guaranteed. The orthographic-hover workaround currently expects C4D at
 
 1. In Cinema 4D Preferences, use **Open Preferences Folder** to locate the active
    user preferences directory, then quit Cinema 4D.
-2. Download `c4d-spacemouse-ui-v0.1.0-preview.4-macos-arm64.zip` from the GitHub
+2. Download `c4d-spacemouse-ui-v0.1.0-preview.5-macos-arm64.zip` from the GitHub
    release and extract it. Use the plugin ZIP, rather than GitHub's source archives.
 3. Create a `plugins` folder in the preferences directory if needed. Copy the
    extracted `SpaceMouseUI` folder into it. The resulting path should be

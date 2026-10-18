@@ -6,12 +6,13 @@ from copy import deepcopy
 # compatibility; the UI expresses adjustments relative to this tuning.
 PROFILES={
  'node':{'panX':1.85,'panY':1.85,'zoom':.8},
+ 'xpresso':{'panX':2.405,'panY':2.405,'zoom':.64},
  'dope':{'panX':3.,'panY':3.,'zoom':1.},
  'fcurve':{'panX':3.,'panY':3.,'zoom':1.},
  'tracks':{'panX':0.,'panY':3.,'zoom':0.},
  'lists':{'panX':6.,'panY':6.,'zoom':0.},
 }
-GROUPS=[(2000,'General'),(2001,'Overall sensitivity'),(2002,'Node Editor graphs'),
+GROUPS=[(2000,'General'),(2001,'Overall sensitivity'),(2002,'Node Editor graphs'),(2007,'XPresso graphs'),
         (2003,'Dope Sheet'),(2004,'F-Curve graphs'),(2005,'Timeline track lists'),(2006,'Lists and inspectors')]
 FIELDS=[
  (1000,2000,'enabled','Enable panel navigation',True),
@@ -23,7 +24,7 @@ FIELDS=[
  (1010,2001,'panGain','Pan and scroll',1.),
  (1011,2001,'masterZoom','Zoom',1.),
 ]
-for profile,group,start in [('node',2002,1100),('dope',2003,1120),('fcurve',2004,1140),('tracks',2005,1160),('lists',2006,1180)]:
+for profile,group,start in [('node',2002,1100),('xpresso',2007,1200),('dope',2003,1120),('fcurve',2004,1140),('tracks',2005,1160),('lists',2006,1180)]:
  for offset,(axis,label) in enumerate([('panX','Horizontal pan' if profile not in ('tracks','lists') else 'Horizontal scroll'),
                                       ('panY','Vertical pan' if profile not in ('tracks','lists') else 'Vertical scroll'),('zoom','Zoom')]):
   if PROFILES[profile][axis]:FIELDS.append((start+offset,group,'panels.'+profile+'.'+axis,label,1.))

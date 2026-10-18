@@ -41,6 +41,11 @@ class Routing(unittest.TestCase):
         self.assertEqual(self.nav.sensitivity_profile(self.context(50,700),('timeline',1,1,False,())), 'tracks')
         self.assertEqual(self.nav.sensitivity_profile(self.context(400,700),('timeline',1,1,False,())), 'fcurve')
         self.assertEqual(self.nav.sensitivity_profile(self.context(1000,700),('timeline',1,2,False,())), 'dope')
+    def test_node_and_xpresso_sensitivity_are_independent(self):
+        context=self.context(400,300)
+        self.assertEqual(self.nav.sensitivity_profile(context,('node',1,0,False,())), 'node')
+        self.assertEqual(self.nav.sensitivity_profile(context,('xpresso',1,0,False,())), 'xpresso')
+        self.assertEqual(self.nav.sensitivity_profile(context,('auto',1,0,False,())), 'xpresso')
     def test_full_node_graph_and_inspector(self):
         self.assertEqual(self.nav.route(self.context(690,300,2,b'Node Editor'))[0],'node')
         self.assertEqual(self.nav.route(self.context(1000,300,2,b'Node Editor'))[0],'scroll')

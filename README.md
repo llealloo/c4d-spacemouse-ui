@@ -39,7 +39,7 @@ against a separately downloaded Maxon Cinema 4D SDK with a macOS 14.0 deployment
 target. With that bridge present, run `python3 tools/c4d-plugin/build.py`; output
 is `.build/plugin/SpaceMouseUI`. See [technical notes](tools/c4d-plugin/README.txt)
 and the archived [development history](docs/DEVELOPMENT_HISTORY.md). Package a
-release with `python3 tools/c4d-plugin/package_release.py <version-tag>`.
+release with `python3 tools/c4d-plugin/package_release.py v0.1.0-preview.5`.
 
 ## License
 

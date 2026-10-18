@@ -11,12 +11,16 @@ class Preferences(unittest.TestCase):
   self.assertEqual(m.get(settings,1011),1.)
   self.assertTrue(settings['invertHorizontal'])
   self.assertEqual(settings['panels']['node'],{'panX':1.85,'panY':1.85,'zoom':.8})
+  self.assertEqual(settings['panels']['xpresso'],{'panX':2.405,'panY':2.405,'zoom':.64})
  def test_per_type_and_axis_independence(self):
   settings=m.normalise({'zoomGain':6})
   m.set_value(settings,1100,2.)
+  m.set_value(settings,1201,1.5)
   m.set_value(settings,1142,.5)
   self.assertEqual(settings['panels']['node']['panX'],3.7)
   self.assertEqual(settings['panels']['node']['panY'],1.85)
+  self.assertEqual(settings['panels']['xpresso']['panX'],2.405)
+  self.assertAlmostEqual(settings['panels']['xpresso']['panY'],3.6075)
   self.assertEqual(settings['panels']['fcurve']['zoom'],.5)
   self.assertEqual(settings['panels']['dope']['zoom'],1.)
  def test_master_zoom_round_trip_after_restart(self):
@@ -34,6 +38,7 @@ class Preferences(unittest.TestCase):
  def test_current_tuning_is_unchanged_and_displays_all_100_percent(self):
   current={'zoomGain':6.,'zoomReference':6.,'panGain':1.,'panels':{
    'node':{'panX':1.85,'panY':1.85,'zoom':.8},
+   'xpresso':{'panX':2.405,'panY':2.405,'zoom':.64},
    'dope':{'panX':3.,'panY':3.,'zoom':1.},
    'fcurve':{'panX':3.,'panY':3.,'zoom':1.},
    'tracks':{'panX':0.,'panY':3.,'zoom':0.},
@@ -43,6 +48,10 @@ class Preferences(unittest.TestCase):
   for identifier,group,path,label,default in m.FIELDS:
    if not isinstance(default,bool):self.assertEqual(m.get(settings,identifier),1.)
   self.assertEqual(m.normalise(settings),settings)
+ def test_accepted_xpresso_adjustments_migrate_to_100_percent(self):
+  settings=m.normalise({'panels':{'xpresso':{
+   'panX':2.4050000000000002,'panY':2.4050000000000002,'zoom':.6400000000000001}}})
+  for identifier in (1200,1201,1202):self.assertAlmostEqual(m.get(settings,identifier),1.)
  def test_relative_range_survives_restart_and_reset(self):
   settings=m.normalise({})
   m.set_value(settings,1181,10.)

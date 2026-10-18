@@ -510,7 +510,14 @@ Bool DirectPan(GvNodeGUI* gui, Float deltaX, Float deltaY)
 	api.getTranslation(helper, gui, root, &x, &y);
 	if (!std::isfinite(x) || !std::isfinite(y))
 		return false;
-	api.setTranslation(helper, gui, root, x + deltaX, y + deltaY);
+	Float zoom = 1.0;
+	gui->GetZoom(root, zoom);
+	if (!std::isfinite(zoom) || zoom <= 0.0)
+		return false;
+	// The private translation is stored in graph units, while the Node Editor
+	// scroll path consumes screen-pixel deltas. Convert pixels to graph units so
+	// visible pan speed remains continuous and independent of the current zoom.
+	api.setTranslation(helper, gui, root, x + deltaX / zoom, y + deltaY / zoom);
 	gui->Redraw();
 	return true;
 }

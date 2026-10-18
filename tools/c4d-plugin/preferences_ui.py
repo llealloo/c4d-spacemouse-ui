@@ -57,7 +57,8 @@ class Preferences(c4d.plugins.PreferenceData):
         if nav is None or key not in BY_ID:return True
         if key in (1000,1005):return True
         if not nav.settings['enabled']:return False
-        return nav.settings['zoomEnabled'] if BY_ID[key][2] in ('masterZoom','panels.node.zoom','panels.dope.zoom','panels.fcurve.zoom') else True
+        path=BY_ID[key][2]
+        return nav.settings['zoomEnabled'] if path=='masterZoom' or path.endswith('.zoom') else True
 
 def register():
     global PREFERENCE_ID,RESOURCE,__res__,__file__

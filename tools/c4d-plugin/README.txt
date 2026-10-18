@@ -34,8 +34,8 @@ Settings: Preferences > SpaceMouse UI (also opened by Extensions > SpaceMouse UI
 Independent horizontal/vertical/zoom sensitivity is available for Node graphs,
 Dope Sheets, F-Curves, Timeline track lists, and lists/inspectors. Percentages
 start at 100% of the accepted tuning. Changes apply immediately and persist.
-The internal reference tuning incorporates the accepted Node pan 1.85/zoom .8,
-Dope Sheet/F-Curve/track pan 3, list scroll 6, and overall zoom 6. All visible
+The internal reference tuning incorporates Node pan 1.85/zoom .8, XPresso pan
+2.405/zoom .64, Dope Sheet/F-Curve/track pan 3, list scroll 6, and overall zoom 6. All visible
 sensitivity controls default to 100%; 200% doubles the corresponding calibrated
 gain. Settings retain actual physical gains so loading the accepted preferences
 does not change motion or repeatedly apply a migration on restart.
