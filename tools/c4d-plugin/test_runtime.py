@@ -33,6 +33,9 @@ class Routing(unittest.TestCase):
     def test_full_node_graph_and_inspector(self):
         self.assertEqual(self.nav.route(self.context(690,300,2,b'Node Editor'))[0],'node')
         self.assertEqual(self.nav.route(self.context(1000,300,2,b'Node Editor'))[0],'scroll')
+    def test_modified_floating_graph_and_inspector_remain_routable(self):
+        self.assertEqual(self.nav.route(self.context(690,300,2,b'Node Editor *'))[0],'node')
+        self.assertEqual(self.nav.route(self.context(1000,300,2,b'Node Editor *'))[0],'scroll')
     def test_docked_node_graph_uses_its_own_bounds(self):
         self.nav.graphs=[dict(window=1,x=20,y=110,width=700,height=400)]
         target=self.nav.route(self.context(690,300))

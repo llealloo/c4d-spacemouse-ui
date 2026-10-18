@@ -32,7 +32,7 @@ def inventory():
     for i in range(call(windows, 'count', C.c_ulong)):
         window = call(windows, 'objectAtIndex:', args=(i,), types=(C.c_ulong,))
         title = text(call(window, 'title'))
-        if title != 'Node Editor': continue
+        if title not in ('Node Editor', 'Node Editor *'): continue
         result = {'title': title, 'window': call(window, 'windowNumber', C.c_long), 'views': []}
         def walk(view, depth=0):
             if not view or depth>30: return
@@ -55,7 +55,7 @@ def read_node_graphs():
     primary_height = call(primary, 'frame', Rect).size.height
     result = []
     for window in inventory():
-        if window['title'] != 'Node Editor': continue
+        if window['title'] not in ('Node Editor', 'Node Editor *'): continue
         views = window['views']
         if not views: continue
         content = views[0]['screen']

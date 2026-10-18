@@ -36,7 +36,8 @@ def read_node_graphs(native,api,viewports=()):
         window=call(windows,'objectAtIndex:',args=(index,),types=(C.c_ulong,))
         if not call(window,'isVisible',C.c_bool) or call(window,'isMiniaturized',C.c_bool):continue
         title=native['text'](call(window,'title'))
-        if title!='Node Editor' and not title.endswith(' - Main'):continue
+        floating=title in ('Node Editor','Node Editor *')
+        if not floating and not title.endswith(' - Main'):continue
         number=call(window,'windowNumber',C.c_long)
         def walk(view,depth=0):
             if not view or depth>24 or call(view,'isHiddenOrHasHiddenAncestor',C.c_bool):return
@@ -45,7 +46,7 @@ def read_node_graphs(native,api,viewports=()):
                 if bounds.size.width>200 and bounds.size.height>100:
                     try:message=api['ptr'](view+offset)
                     except RuntimeError:message=0
-                    if message and is_node_surface(message,api,floating=title=='Node Editor'):
+                    if message and is_node_surface(message,api,floating=floating):
                         local=call(view,'convertRect:toView:',Rect,(bounds,None),(Rect,C.c_void_p))
                         screen=call(window,'convertRectToScreen:',Rect,(local,),(Rect,))
                         region={'window':number,'x':screen.origin.x,'y':primary_height-screen.origin.y-screen.size.height,
@@ -56,7 +57,7 @@ def read_node_graphs(native,api,viewports=()):
                             x,y,w,h=frame
                             return (region['x']<x+w and x<region['x']+region['width']
                                 and region['y']<y+h and y<region['y']+region['height'])
-                        if title=='Node Editor' or not any(overlaps(frame) for frame in viewports):
+                        if floating or not any(overlaps(frame) for frame in viewports):
                             existing=next((r for r in result if all(r[k]==region[k] for k in region)),None)
                             if existing is None:
                                 existing=region;result.append(existing)

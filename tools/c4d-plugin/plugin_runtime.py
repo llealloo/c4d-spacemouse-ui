@@ -144,7 +144,7 @@ class Navigation:
             bounds=tuple(graph[k] for k in ('x','y','width','height'))
             if graph['window']==window and contains(bounds,x,y):
                 return ('node',window,0,False,bounds)
-        if title=='Node Editor':
+        if title in ('Node Editor','Node Editor *'):
             graph=next((p for p in self.graphs if p['window']==window),None)
             if not graph:return None
             bounds=tuple(graph[k] for k in ('x','y','width','height'))
