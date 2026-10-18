@@ -12,9 +12,9 @@ replace them. Vendor files and driver profiles remain unmodified. Runtime
 callback adapters are reversible and guarded for inspected builds; unsupported
 builds may disable features and report the reason in Cinema 4D's Console.
 
-This is an experimental preview. Dedicated Maxon plugin IDs are pending;
-the preview currently selects temporary IDs at startup. Conflicts with other
-plugins remain possible. Native integration depends on inspected C4D and
+This is an experimental preview using registered Maxon plugin IDs:
+Settings Command `1071577`, Input Service `1071578`, Preferences `1071579`.
+Native integration depends on inspected C4D and
 3Dconnexion builds, so successful loading on every C4D 2027 installation is
 not guaranteed. The orthographic-hover workaround currently expects C4D at
 `/Applications/Maxon Cinema 4D 2027`.
@@ -23,7 +23,7 @@ not guaranteed. The orthographic-hover workaround currently expects C4D at
 
 1. In Cinema 4D Preferences, use **Open Preferences Folder** to locate the active
    user preferences directory, then quit Cinema 4D.
-2. Download `c4d-spacemouse-ui-v0.1.0-preview.1-macos-arm64.zip` from the GitHub
+2. Download `c4d-spacemouse-ui-v0.1.0-preview.2-macos-arm64.zip` from the GitHub
    release and extract it. Use the plugin ZIP, rather than GitHub's source archives.
 3. Create a `plugins` folder in the preferences directory if needed. Copy the
    extracted `SpaceMouseUI` folder into it. The resulting path should be

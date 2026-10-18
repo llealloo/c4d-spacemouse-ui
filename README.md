@@ -30,7 +30,7 @@ versions have not been tested. Some workarounds require exact vendor/C4D builds.
 
 See [installation and compatibility notes](docs/INSTALLATION.md) for upgrades,
 permissions, removal, and preview limitations. This is an experimental preview
-using temporary plugin IDs; dedicated Maxon IDs are still pending.
+using dedicated Maxon plugin IDs.
 
 ## Development
 
@@ -38,7 +38,7 @@ Build with `python3 tools/c4d-plugin/build.py` on macOS with Python 3, Xcode
 Command Line Tools, and the installed 3Dconnexion framework. Output:
 `.build/plugin/SpaceMouseUI`. See [technical notes](tools/c4d-plugin/README.txt)
 and the archived [development history](docs/DEVELOPMENT_HISTORY.md).
-Package a release with `python3 tools/c4d-plugin/package_release.py v0.1.0-preview.1`.
+Package a release with `python3 tools/c4d-plugin/package_release.py v0.1.0-preview.2`.
 
 ## License
 

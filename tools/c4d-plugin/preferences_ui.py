@@ -8,7 +8,7 @@ PACKAGE=Path(__file__).resolve().parent
 MODEL=runpy.run_path(str(PACKAGE/'preferences_model.py'),run_name='spacemouse_ui_preferences_schema')
 FIELDS=MODEL['FIELDS'];BY_ID=MODEL['BY_ID']
 RESOURCE=None
-PREFERENCE_ID=None
+PREFERENCE_ID=runpy.run_path(str(PACKAGE/'plugin_ids.py'))['PREFERENCE_ID']
 WORLD_CONTAINER=0x53504D55  # Local preview's distinct preference-data namespace.
 
 def navigation():return getattr(builtins,'_spacemouse_ui_navigation',None)
@@ -63,7 +63,6 @@ def register():
     global PREFERENCE_ID,RESOURCE,__res__,__file__
     previous=getattr(builtins,'_spacemouse_ui_preferences',None)
     if previous:return previous['id']
-    PREFERENCE_ID=next(i for i in range(1000001,1000200) if not c4d.plugins.FindPlugin(i,c4d.PLUGINTYPE_ANY))
     RESOURCE=c4d.plugins.GeResource()
     if not RESOURCE.Init(str(PACKAGE)):raise RuntimeError('Could not initialize SpaceMouse UI resources')
     __res__=RESOURCE

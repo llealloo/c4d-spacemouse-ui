@@ -41,8 +41,8 @@ companion direction/zoom preferences migrate on first launch. Settings are store
 This is an experimental prerelease tested only on macOS Apple Silicon.
 Windows, Linux, Intel Macs, and other C4D versions have not been tested. The native
 Timeline offsets and SDK callback adapter support the inspected C4D 2027
-and installed 3DconnexionClient builds only. Temporary
-plugin IDs are used in this preview; dedicated Maxon IDs are still pending.
+and installed 3DconnexionClient builds only. Registered Maxon
+IDs: Settings Command 1071577, Input Service 1071578, Preferences 1071579.
 The driver framework is referenced from its installed location, not bundled.
 
 Build: python3 tools/c4d-plugin/build.py

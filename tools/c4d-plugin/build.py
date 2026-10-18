@@ -7,6 +7,7 @@ import json
 root=Path(__file__).resolve().parents[2]
 dest=root/'.build/plugin/SpaceMouseUI'
 dest.mkdir(parents=True,exist_ok=True)
+shutil.copy2(root/'tools/c4d-plugin/plugin_ids.py',dest/'plugin_ids.py')
 for name in ('SpaceMouseUI.pyp','file_dialog_scroll.py','plugin_runtime.py','node_pan_scale.py','node_event_transport.py','preferences_model.py','preferences_ui.py','settings_dialog.py','viewport_activation.py','vendor_motion_reset.py','ortho_hover.py','README.txt'):
  shutil.copy2(root/'tools/c4d-plugin'/name,dest/name)
 shutil.copy2(root/'LICENSE',dest/'LICENSE')

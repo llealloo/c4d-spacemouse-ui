@@ -5,6 +5,7 @@ from pathlib import Path
 import c4d
 
 PACKAGE=Path(__file__).resolve().parent
+IDS=runpy.run_path(str(PACKAGE/'plugin_ids.py'))
 runtime=runpy.run_path(str(PACKAGE/'plugin_runtime.py'),run_name='spacemouse_ui_runtime')
 
 def register_preferences():
@@ -12,7 +13,7 @@ def register_preferences():
     preferences=runpy.run_path(str(PACKAGE/'preferences_ui.py'))
     __res__=c4d.plugins.GeResource()
     if not __res__.Init(str(PACKAGE)):raise RuntimeError('Could not initialize settings resources')
-    identifier=next(i for i in range(1000001,1000200) if not c4d.plugins.FindPlugin(i,c4d.PLUGINTYPE_ANY))
+    identifier=preferences['PREFERENCE_ID']
     if not c4d.plugins.RegisterPreferencePlugin(id=identifier,g=preferences['Preferences'],name='SpaceMouse UI',description='spacemouseui',parentid=0,sortid=0):
         raise RuntimeError('Could not register Preferences')
     builtins._spacemouse_ui_preferences={'id':identifier,'resource':__res__,'class':preferences['Preferences']}
@@ -39,9 +40,8 @@ class Service(c4d.plugins.MessageData):
             if navigation:navigation.tick()
         return True
 
-# Local development IDs only. Obtain dedicated Maxon IDs before distribution.
-COMMAND_ID=next(i for i in range(1000001,1000100) if not c4d.plugins.FindPlugin(i,c4d.PLUGINTYPE_ANY))
-SERVICE_ID=next(i for i in range(COMMAND_ID+1,1000101) if not c4d.plugins.FindPlugin(i,c4d.PLUGINTYPE_ANY))
+COMMAND_ID=IDS['COMMAND_ID']
+SERVICE_ID=IDS['SERVICE_ID']
 
 if __name__=='__main__':
     try:
